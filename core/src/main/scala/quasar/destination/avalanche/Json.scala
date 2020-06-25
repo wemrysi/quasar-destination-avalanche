@@ -17,10 +17,16 @@
 package quasar.destination.avalanche
 
 import scala._
+import scala.util.Either
 
-import argonaut._
+import java.lang.String
+import java.net.{URI, URISyntaxException}
 
-object Json {
+import argonaut._, Argonaut._
+
+import cats.implicits._
+
+object json {
   def decodeOrDefault[A](decodeJson: DecodeJson[A], defaultValue: A): DecodeJson[A] =
     DecodeJson.withReattempt(a => a.success match {
       case None =>
@@ -28,4 +34,15 @@ object Json {
       case Some(v) =>
         decodeJson.decode(v)
     })
+
+  implicit val uriCodecJson: CodecJson[URI] =
+    CodecJson(
+      uri => jString(uri.toString),
+      c => for {
+        uriStr <- c.jdecode[String]
+        uri0 = Either.catchOnly[URISyntaxException](new URI(uriStr))
+        uri <- uri0.fold(
+          ex => DecodeResult.fail(s"Invalid URI: ${ex.getMessage}", c.history),
+          DecodeResult.ok(_))
+      } yield uri)
 }
